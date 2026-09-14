@@ -36,7 +36,7 @@ directory the process runs from.
 cp .env.example .env
 ```
 
-Then edit `.env` and fill in the four API keys:
+Then edit `.env` and fill in the keys:
 
 ```
 GOOGLE_SAFE_BROWSING_API_KEY=...
@@ -98,7 +98,7 @@ From the repository root:
 npm run dev:backend
 ```
 
-Expected startup output with all keys configured:
+Expected startup output with all available keys configured:
 
 ```
 [threatguard-backend] listening on http://localhost:8787
@@ -121,7 +121,8 @@ curl -X POST http://localhost:8787/api/check-url \
   -d '{"url":"https://example.com"}'
 ```
 
-Expected response (against a clean URL with all three working sources):
+Expected response against a clean URL with the three working sources
+configured:
 
 ```json
 {
@@ -208,7 +209,7 @@ extension/dist/
 3. The popup shows:
    - URL: `https://example.com/`
    - Verdict: "No threats found" with a green checkmark
-   - "N sources checked" (three, with all working keys configured)
+   - "3 sources checked" (with the three working keys configured)
    - Score: `0/100`
    - A green **Rescan** pill button
 
@@ -220,7 +221,12 @@ extension/dist/
 The warning overlay renders when the verdict is `suspicious` or `dangerous`.
 
 **Option A — use a real malicious URL.** Visit any URL that Google Safe
-Browsing, VirusTotal, or URLhaus has flagged. The overlay renders automatically.
+Browsing, VirusTotal, or URLhaus has flagged. The overlay renders
+automatically. The most reliable test URL is Google's own malware test target:
+
+```
+http://testsafebrowsing.appspot.com/s/malware.html
+```
 
 **Option B — use the demo flag.** If you want to demo the overlay without a
 flagged URL:
@@ -291,14 +297,23 @@ may be temporarily rate-limited — abuse.ch restricts accounts for up to 72
 hours after excessive query volume.
 
 **`EADDRINUSE: address already in use :::8787`**
-A previous backend process is still holding the port. On Windows:
+A previous backend process is still holding the port.
 
-```bash
-netstat -ano | findstr :8787
-taskkill //F //PID <pid-from-above>
-```
-
-In PowerShell, use `Stop-Process -Id <pid> -Force` instead.
+- **Git Bash:**
+  ```bash
+  netstat -ano | findstr :8787
+  taskkill //F //PID <pid-from-above>
+  ```
+- **cmd.exe:**
+  ```cmd
+  netstat -ano | findstr :8787
+  taskkill /F /PID <pid-from-above>
+  ```
+- **PowerShell:**
+  ```powershell
+  Get-NetTCPConnection -LocalPort 8787 | Select-Object OwningProcess
+  Stop-Process -Id <pid-from-above> -Force
+  ```
 
 **PhishTank always returns `403`**
 Registration at PhishTank is disabled by the provider. No action is

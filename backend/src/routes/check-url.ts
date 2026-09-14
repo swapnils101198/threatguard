@@ -1,4 +1,3 @@
-
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import type { ThreatAggregator } from '../services/aggregator.js';
@@ -12,9 +11,6 @@ interface CheckBody {
 interface CachedPayload {
   signals: ThreatSignal[];
 }
-
-// TEMP DEMO FLAG — set to false to restore real threat lookups. const DEMO_MODE = true;
-const DEMO_MODE = false;
 
 export function createCheckUrlRouter(aggregator: ThreatAggregator, cache: TtlCache<CachedPayload>): Router {
   const router = Router();
@@ -32,15 +28,6 @@ export function createCheckUrlRouter(aggregator: ThreatAggregator, cache: TtlCac
     const cached = cache.get(url);
     if (cached) {
       res.json({ signals: cached.signals, cached: true });
-      return;
-    }
-
-    if (DEMO_MODE) {
-      const demoSignals: ThreatSignal[] = [
-        { source: 'google-safe-browsing', flagged: true, detail: 'SOCIAL_ENGINEERING' },
-      ];
-      cache.set(url, { signals: demoSignals });
-      res.json({ signals: demoSignals, cached: false });
       return;
     }
 

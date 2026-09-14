@@ -132,7 +132,7 @@ This is **fail-open**: the user is never blocked because a source is down. The
 alternative (fail-closed) would be appropriate for enterprise but produces
 unacceptable false positives for a consumer tool.
 
-**Live example (verified on the current build):**
+**Live example from the current build:**
 
 ```
 [aggregator] phishtank failed: PhishTank responded 403
@@ -179,6 +179,15 @@ oldest-inserted-first. The backend cache is bounded at 500 entries by default
   guard (`isScanResponse`) before using it.
 - `ThreatSignal.detail` is a free-form string from third-party APIs. It is
   rendered only via `textContent` and never interpolated into markup.
+- The extension maintains an allowlist of source identifiers (`VALID_SOURCES`
+  in `threat-apis.ts`). Any signal whose `source` field is not on the list
+  causes the whole response to be rejected as malformed. This is a deliberate
+  strictness: it prevents an unknown or malformed source from silently
+  influencing the score. During development, a bug appeared where the URLhaus
+  source was added to the backend before the extension's allowlist was
+  updated — the response was rejected and the extension fell back to a
+  "No sources responded" state, which is exactly the fail-safe behavior this
+  guard is meant to produce. The guard is intentional, not accidental.
 
 ## Security considerations for production
 

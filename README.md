@@ -38,7 +38,7 @@ documented in
 ## Architecture at a glance
 
 ```
-Chrome Tab  ──►  MV3 Service Worker  ──►  Express Backend  ──►  Four threat sources
+Chrome Tab ──► MV3 Service Worker ──► Express Backend ──► Four threat sources
 ```
 
 The extension never sees API keys. All third-party lookups go through the
@@ -77,8 +77,18 @@ The backend starts on `http://localhost:8787`. With no API keys, all sources
 fail and the extension reports "No sources responded" — this is deliberate
 fail-open behavior and demonstrates the required failure handling.
 
-Full setup instructions, including how to see the warning overlay without
-live API keys: [`docs/setup.md`](docs/setup.md).
+Full setup instructions, including key acquisition for each provider and how
+to see the warning overlay without live API keys:
+[`docs/setup.md`](docs/setup.md).
+
+### A note on URLhaus
+
+URLhaus requires an Auth-Key on every request. abuse.ch only issues one to
+accounts with **at least two linked authentication providers** (Google +
+GitHub is the fastest combination), and the key must be saved via the
+**Save Profile** button on the abuse.ch profile page before it becomes valid.
+See `docs/setup.md` → "Troubleshooting" if the Auth-Key returns `403` despite
+being correctly placed in `.env`.
 
 ## Documentation
 
@@ -102,10 +112,14 @@ live API keys: [`docs/setup.md`](docs/setup.md).
   `textContent` — reasons from threat APIs are untrusted data.
 - **State via CSS variables.** One `data-verdict` attribute on `<body>`
   drives every stateful style in the popup. No duplicated CSS blocks.
+- **Explicit dotenv path resolution.** `backend/src/lib/env.ts` loads `.env`
+  from the repo root via `fileURLToPath` + `path.resolve`, so the config is
+  read correctly regardless of the current working directory — a subtle bug
+  that npm workspaces would otherwise introduce.
 
 ## Live verification
 
-Verified against real API keys on the current commit:
+Verified against real API keys on the current commit (captured 2026-09-14):
 
 ```json
 {
@@ -122,10 +136,22 @@ Request against a URL known to be on Google's malware list. Three sources
 responded in parallel; PhishTank failed cleanly and was excluded by the
 aggregator.
 
+The extension's popup on the same URL rendered:
+
+```
+Dangerous site
+3 sources checked · score 50/100
+
+CURRENT PAGE
+http://testsafebrowsing.appspot.com/s/malware.html
+
+• Google Safe Browsing: MALWARE
+```
+
 ## Known limitations
 
-The MVP is intentionally scoped. Ten known limitations and what would change
-in production are enumerated in
+The MVP is intentionally scoped. Eleven known limitations and what would
+change in production are enumerated in
 [`docs/submission-notes.md`](docs/submission-notes.md).
 
 Highlights:

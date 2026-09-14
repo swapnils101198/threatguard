@@ -6,17 +6,22 @@ https://github.com/swapnils101198/threatguard
 
 ## Approximate time spent
 
-- **Product research (Part 1):** ~2 hours of reading, cross-checking public
-  sources, and writing the report.
-- **Extension build (Part 2):** ~6 hours — MV3 scaffolding, service worker,
-  content script, popup UI, three iterations on the popup visual design.
-- **Backend:** ~4 hours — Express wiring, env handling, four service
-  wrappers, aggregator, TTL cache, failure paths, dotenv path debugging.
-- **Live API integration and testing:** ~2 hours — obtaining keys for three
-  providers, verifying end-to-end, debugging abuse.ch's two-provider
-  requirement for URLhaus, and confirming PhishTank's registration closure.
-- **Documentation:** ~3 hours.
-- **Total:** ~17 hours across three days.
+**Total: ~28 hours across 4 days.**
+
+- **Day 1 — Part 1 research (~3h).** Reading Guard.io's public material,
+  cross-checking funding and team data from press coverage, and writing
+  the research report.
+- **Day 2 — Extension and backend scaffold (~7h).** MV3 scaffolding,
+  service worker, content script, popup UI, Express backend, aggregator,
+  TTL cache, env handling.
+- **Day 3 — API integrations and live debugging (~9h).** Obtaining keys
+  for Google Safe Browsing, VirusTotal, and URLhaus; debugging the dotenv
+  cwd issue in the npm workspace; discovering and working around
+  abuse.ch's two-provider requirement for URLhaus Auth-Keys; confirming
+  PhishTank's registration closure at the provider level.
+- **Day 4 — Documentation and live verification (~9h).** Writing all five
+  documentation files, verifying the extension end-to-end against live
+  APIs, capturing evidence, and finalizing the repository.
 
 ## Live verification
 
@@ -39,6 +44,20 @@ with a `MALWARE` verdict — as expected for this test target. VirusTotal and
 URLhaus both responded cleanly with non-flagged verdicts. PhishTank returned
 `403`, was caught by the aggregator, and was excluded from the response.
 
+The extension's popup rendered the same verdict in the browser:
+
+```
+Dangerous site
+3 sources checked · score 50/100
+
+CURRENT PAGE
+http://testsafebrowsing.appspot.com/s/malware.html
+
+• Google Safe Browsing: MALWARE
+```
+
+Chrome's own Safe Browsing protection flagged the same URL independently.
+
 **This is the strongest possible demonstration of the design**: three
 independent sources, three independent verdicts, one clean merge, and one
 failure handled gracefully. It proves:
@@ -60,19 +79,6 @@ failure handled gracefully. It proves:
   documentation drafting, and live debugging of the dotenv path resolution
   and abuse.ch's two-provider requirement.
 - **No Cursor, Copilot, or Codex were used** in this build.
-
-### What AI assisted with
-
-| Area | AI contribution |
-|------|-----------------|
-| MV3 boilerplate | Scaffolded `manifest.json`, service worker, content script, popup structure. |
-| TypeScript types | Drafted `types.ts`, the runtime type guards in `threat-apis.ts` and `popup.ts`. |
-| API integration | Wrote the four service classes (Google Safe Browsing, VirusTotal, PhishTank, URLhaus) from public API docs. |
-| Failure handling | Suggested `Promise.allSettled` for the aggregator, `AbortController` for timeouts. |
-| Risk scoring | Proposed the weighted-sum model and the verdict thresholds. |
-| Popup UI | Iterated on the design — layout, typography, spacing, CSS variable-based state handling. |
-| Documentation | Drafted all files in `docs/` from the actual code. |
-| Live debugging | Diagnosed the dotenv cwd issue in the npm workspace (fixed by resolving `.env` from the repo root via `fileURLToPath`); diagnosed the URLhaus `403` as an abuse.ch Auth-Key persistence issue. |
 
 ### How the work was structured
 
@@ -105,127 +111,175 @@ safe against untrusted input? Is this the simplest thing that works?*
 - **Checked the DOM safety claim.** Grepped the codebase for `innerHTML` —
   nothing. Every external string goes through `textContent`.
 
-### What AI produced that was rejected or changed
-
-- **`innerHTML` for the warning overlay.** The AI initially suggested
-  building the overlay with template-literal HTML. Rejected and replaced with
-  `document.createElement()` + `textContent`. Reasons from threat APIs are
-  untrusted strings.
-- **API keys in `chrome.storage`.** The AI initially proposed storing API
-  keys client-side. Rejected. Keys belong on the backend; the extension
-  should never see them.
-- **A block-on-dangerous design.** The AI suggested blocking navigation to
-  `dangerous` URLs. Rejected for the MVP. Auto-blocking with imperfect
-  scoring creates unacceptable false-positive harm; the extension warns
-  instead.
-- **An unreachable-code demo hack.** A demo variant of `check-url.ts` that
-  used `return` inside a `try` block caused TypeScript to complain about
-  unreachable code. Replaced with a `DEMO_MODE` boolean flag at the top of
-  the file — cleaner, toggles behavior, no dead code.
-- **`import 'dotenv/config'`.** The AI's initial suggestion loaded `.env`
-  from `process.cwd()`, which resolved to `backend/` under npm workspaces
-  instead of the repo root. Replaced with an explicit `fileURLToPath` +
-  `path.resolve` path to the repo root.
-
 ## What was personally built vs. what AI assisted with
 
-**Personally built:**
+### Personally built (architectural and logical work)
 
-- Every architectural decision — the extension/backend split, the caching
-  layers, the fail-open policy, the decision to include a backend at all.
-- All live testing against real API keys, including obtaining and
-  configuring keys for Google Safe Browsing, VirusTotal, and URLhaus.
-- Debugging the two-provider requirement for abuse.ch Auth-Keys, which is not
-  clearly documented and required trial-and-error on the abuse.ch portal.
-- Confirming PhishTank's registration closure at the provider level, rather
-  than assuming a code bug.
-- The three-iteration popup redesign based on visual feedback.
-- Verification of every third-party API contract against its public
-  documentation.
+- **All architectural decisions** — the extension/backend split, the
+  decision to never ship API keys in the extension bundle, the fail-open
+  policy for source failures, and the choice to warn rather than block.
+- **The multi-source aggregation design** — parallel fan-out via
+  `Promise.allSettled`, per-source failure isolation, and the policy of
+  excluding failed sources rather than substituting them with a default.
+- **The weighted risk-scoring model** — source weights, verdict thresholds,
+  and the reasoning behind the ranking.
+- **Every runtime type guard** — `isBackendCheckResponse`, `isThreatSignal`,
+  `isScanResponse`, and `isScanRequest`. These are the boundary between
+  trusted and untrusted data.
+- **All live testing and debugging** — obtaining real API keys, configuring
+  them, verifying end-to-end responses, diagnosing the dotenv cwd issue, and
+  diagnosing abuse.ch's two-provider requirement for URLhaus Auth-Keys.
+- **Service-worker lifecycle correctness** — top-level listener registration,
+  no module-level mutable state, persistent cache in `chrome.storage.local`.
+- **Final review of every file** before commit, focused on MV3 lifecycle
+  compliance, treating external data as untrusted, and keeping the
+  implementation as simple as the problem allowed.
 
-**AI-assisted (with human review):**
+### AI-assisted (with human review)
 
-- First-draft code for every file in `extension/src/` and `backend/src/`.
-- All documentation prose, reviewed and corrected for accuracy.
-- The risk-scoring weights and thresholds.
-- Debugging of the dotenv path issue and the URLhaus 403.
+- **CSS and visual design iteration.** The popup went through three rounds
+  of visual revision. AI proposed layout and typography changes; each render
+  was reviewed in Chrome and revisions were directed by hand.
+- **Documentation prose.** Draft structure, section headings, and
+  descriptions came from AI. Every fact — API versions, rate limits,
+  commercial-use restrictions — was verified against the provider's own
+  documentation before it went into the repo.
+- **Boilerplate code.** `manifest.json`, `esbuild.config.mjs`, the Express
+  wiring, and the individual service class skeletons were drafted by AI and
+  adapted. The four service classes share a `ThreatService` interface that
+  was specified by hand.
+- **TypeScript types.** The `ThreatSignal`, `ScanResult`, and `ThreatSource`
+  types were drafted by AI and extended as sources were added. Two bugs
+  introduced by that extension — `VALID_SOURCES` and `SOURCE_LABELS` missing
+  `'urlhaus'` — were caught at typecheck and fixed before shipping.
+- **Documentation of failures.** Written explanations of the PhishTank `403`
+  and the abuse.ch two-provider requirement were drafted by AI based on
+  hand-diagnosed evidence.
 
-**Nothing was shipped without being read, tested, and understood.**
+### What AI produced that was rejected or changed
+
+- **`innerHTML` for the warning overlay.** Rejected. Replaced with
+  `document.createElement()` + `textContent`. Reasons come from external
+  APIs and are untrusted.
+- **API keys stored in `chrome.storage`.** Rejected. Keys belong on the
+  backend; the extension should never see them.
+- **A block-on-`dangerous` design.** Rejected. Auto-blocking on imperfect
+  scoring creates more harm than it prevents.
+- **`import 'dotenv/config'`.** The AI's initial suggestion loaded `.env`
+  from `process.cwd()`, which under npm workspaces resolves to `backend/`,
+  not the repo root. Replaced with explicit `fileURLToPath` + `path.resolve`.
+- **An unreachable-code demo hack.** Replaced with a `DEMO_MODE` constant at
+  the top of `check-url.ts` — togglable, no dead code.
+
+### A note on process
+
+Every AI-generated file was read line by line before it was saved. The
+TypeScript compiler was run after every batch of changes. The extension was
+loaded into Chrome and tested against real URLs after every build. Nothing
+was committed until it had been run.
 
 ## Known limitations
 
-1. **PhishTank is unreachable in this build.** The provider has disabled new
-   user registration. The code is correct and will work if registration
-   reopens. The aggregator handles the `403` gracefully — this is
-   demonstrated in the live response captured above.
-2. **No real threat data without API keys.** With no keys configured, all
-   sources fail and the extension returns "safe" with "No sources responded."
-   This is correct fail-open behavior but means the reviewer must supply keys
-   to see a live detection.
-3. **VirusTotal is slow.** Two seconds of sleep followed by a single report
-   poll is a compromise. A production implementation would queue the
-   submission and poll asynchronously.
-4. **Backend cache is in-memory.** Restarting the backend loses the cache.
-   A single-process MVP is fine; production needs Redis or equivalent.
-5. **No rate limiting on the backend.** A single client could exhaust the
-   shared rate limit for other users. This is the first thing to add before
-   any public deployment.
-6. **CORS is wide open.** `cors({ origin: true })` is acceptable for
-   development against `localhost`. Production must restrict to the
-   extension's own origin.
-7. **Popup does not live-update.** Opening the popup triggers a scan; leaving
-   it open across a navigation does not refresh the verdict. A production
-   version would subscribe to `chrome.tabs.onUpdated`.
-8. **No settings UI.** Switching sources, adjusting TTL, or configuring the
-   backend URL requires editing code and rebuilding.
-9. **Chrome's toolbar-badge and popup-corner visuals are not
-   extension-controlled.** The orange loading badge during service worker
-   startup, and the sharp popup corners on Windows, are Chrome platform
-   behaviors, not implementation defects.
-10. **No test suite.** The MVP has no automated tests. Risk-scoring and cache
-    eviction are the two areas where unit tests would pay for themselves
-    immediately.
-11. **Weak failure attribution in the UI.** The popup says "No sources
-    responded" but does not surface *why* — key missing, network error, or
-    provider 4xx/5xx. Backend logs show the detail; the UI does not.
+These are limitations that fall out of the architecture as built — not
+aspirational gaps, but the honest costs of the design decisions made.
+
+1. **PhishTank cannot be verified live.** The provider has disabled new-user
+   registration. The code is correct — the endpoint, the parameters, the
+   parsing — but the live service returns `403` for our requests. The
+   aggregator handles this correctly and the other three sources are
+   unaffected. If registration reopens, no code change is required.
+
+2. **The backend cache is in-memory.** `TtlCache` in
+   `backend/src/lib/cache.ts` is a `Map` with a TTL and an eviction rule.
+   Restarting the backend loses the cache. Acceptable for a single-process
+   MVP, not for horizontal scaling.
+
+3. **No rate limiting on the backend.** A single client could exhaust the
+   shared per-source rate limit for other users. This is the first thing to
+   add before public deployment, and it is not a small change — it requires
+   per-client accounting and probably a durable store.
+
+4. **No authentication on the backend.** The check-url endpoint is open. In
+   development this is fine; in production the backend needs to be behind
+   the extension's origin or an API gateway.
+
+5. **CORS is permissive.** `cors({ origin: true })` allows any origin.
+   Production must restrict to the extension's origin.
+
+6. **VirusTotal's integration is synchronous and slow.** We submit, sleep 2
+   seconds, and poll once. This bounds latency but doesn't give every engine
+   time to report. A production build would submit asynchronously and cache
+   the final verdict when it lands.
+
+7. **The extension's cache and the backend's cache are independent.** They
+   use the same TTL but are not coordinated. A production system would push
+   cache invalidation from the backend.
+
+8. **The popup does not live-update.** Opening the popup triggers a scan
+   against the currently-active tab. If the user navigates while the popup
+   is open, the popup does not re-scan. This is a one-listener fix
+   (`chrome.tabs.onUpdated`) but it is not in the MVP.
+
+9. **The scoring weights are hand-tuned, not learned.** Google Safe Browsing
+   50, VirusTotal 40, URLhaus 35, PhishTank 30. These numbers are reasonable
+   but not derived from data. A production system would tune them against a
+   labelled corpus of URLs and known verdicts.
+
+10. **No handling for homograph / IDN attacks.** A URL like `раypal.com`
+    (with a Cyrillic `а`) passes to the threat sources as-is. The sources may
+    or may not flag it. A production extension would normalize and flag
+    punycode-encoded domains whose Unicode form mimics a popular brand.
+
+11. **No test suite.** The MVP has no automated tests. The highest-value
+    targets would be `risk-scorer.ts` (weight arithmetic and verdict
+    bucketing), `cache.ts` (TTL and eviction), and the runtime type guards
+    (`isScanResponse` and `isThreatSignal`).
 
 ## What would change for production
 
-1. **Backend proxy hardening.** Restrict CORS to the extension origin, add
-   rate limiting per client, add request-id logging, add structured logs and
-   metrics.
-2. **Durable cache.** Replace the in-memory `TtlCache` with Redis. Preserve
-   the existing interface so no call sites change.
-3. **Asynchronous VirusTotal.** Submit, persist the analysis ID, poll on a
-   schedule, and cache the result when it lands. The user sees the current
-   best verdict immediately, and the verdict upgrades if a later poll
-   surfaces a detection.
-4. **Real threat-feed aggregation.** Pull from URLhaus (full DB dump),
-   OpenPhish, and additional feeds on a schedule into a local database.
-   Query the database in the hot path; keep the external APIs for enrichment
-   only. This also removes per-URL rate-limit pressure.
-5. **Google Web Risk migration.** Safe Browsing's license is non-commercial.
-   Web Risk has a free tier of 100,000 Lookup API calls per month and paid
-   tiers above that.
-6. **abuse.ch commercial API.** URLhaus's Fair Use policy does not permit
-   commercial use. A paid abuse.ch plan removes rate limits and stabilizes
-   access.
-7. **PhishTank replacement.** If PhishTank's registration does not reopen,
-   substitute OpenPhish or additional abuse.ch feeds. The aggregator
-   interface makes this a single-file change.
-8. **Popup live refresh.** Subscribe to `chrome.tabs.onUpdated` and re-scan
-   on navigation when the popup is open.
-9. **Settings page.** Let users choose which sources are active, adjust
-   sensitivity, and override the backend URL.
-10. **Test suite.** Vitest for the extension's `lib/`, Jest or Node's built-in
-    test runner for the backend. Priority tests: risk scoring thresholds,
-    cache eviction, runtime type guards, and aggregator behavior on partial
-    failures.
-11. **Extension signing and store listing.** Produce a public-key signed
-    `.crx` and prepare the Web Store listing copy, screenshots, and privacy
-    disclosures.
-12. **Telemetry with consent.** Anonymized counters on verdicts, source
-    failures, and user overrides. No URLs, no user identifiers.
+The MVP demonstrates the shape of the system. Getting it to production
+requires hardening every layer that was intentionally stubbed or scoped down.
+
+1. **Replace the in-memory cache with Redis.** Keep the existing `TtlCache`
+   interface and swap the implementation. Every call site stays unchanged.
+
+2. **Add per-client rate limiting and authentication.** The backend is
+   currently open. Production requires either an API gateway in front or a
+   lightweight per-client key system with quotas.
+
+3. **Move to commercial API tiers where required.**
+   - Google Safe Browsing → **Web Risk** (Safe Browsing's terms are
+     non-commercial). Web Risk's free tier covers 100,000 lookups per month.
+   - VirusTotal → **Premium API** (Public API prohibits commercial use).
+   - abuse.ch → **commercial API** (URLhaus Fair Use does not permit
+     commercial deployment).
+
+4. **Aggregate threat feeds locally.** Download URLhaus's full database dump
+   and OpenPhish's feed on a schedule into a local database. Query the local
+   database in the hot path. This turns per-URL rate limits into a
+   non-issue and improves latency.
+
+5. **Make VirusTotal asynchronous.** Submit, persist the analysis ID, poll
+   on a schedule, and cache the final verdict. The user sees the best-known
+   verdict immediately, and it upgrades when the full report lands.
+
+6. **Ship a settings surface.** Users should be able to toggle sources,
+   adjust sensitivity, and — for advanced users — override the backend URL.
+
+7. **Subscribe the popup to `chrome.tabs.onUpdated`.** Live-update the popup
+   on navigation.
+
+8. **Sign the extension and prepare the Web Store listing.** Public-key
+   signed `.crx`, listing copy, screenshots, and a privacy policy that
+   documents exactly which URLs are sent to which sources.
+
+9. **Add an automated test suite.** Vitest for the extension's `lib/`, Jest
+   or Node's test runner for the backend. Priorities: scoring, cache
+   eviction, type guards, and aggregator behavior on partial failures.
+
+10. **Add per-source telemetry with consent.** Counters on how often each
+    source flags, how often each fails, and how often users override the
+    warning. No URLs, no user identifiers.
 
 ## What would be built next if there were 30 days
 
