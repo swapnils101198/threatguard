@@ -1,5 +1,3 @@
-// backend/src/services/urlhaus.ts
-
 import type { ThreatService, ThreatSignal } from '../lib/types.js';
 
 const ENDPOINT = 'https://urlhaus-api.abuse.ch/v1/url/';
@@ -16,7 +14,7 @@ interface UrlhausResponse {
 export class UrlhausService implements ThreatService {
   readonly source = 'urlhaus' as const;
 
-  constructor(private readonly authKey: string) {}
+  constructor(private readonly authKey: string) { }
 
   async check(url: string): Promise<ThreatSignal> {
     const controller = new AbortController();

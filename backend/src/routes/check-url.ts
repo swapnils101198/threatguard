@@ -1,4 +1,3 @@
-// backend/src/routes/check-url.ts
 
 import { Router } from 'express';
 import type { Request, Response } from 'express';
@@ -14,14 +13,10 @@ interface CachedPayload {
   signals: ThreatSignal[];
 }
 
-// TEMP DEMO FLAG — set to false to restore real threat lookups.
-// const DEMO_MODE = true;
+// TEMP DEMO FLAG — set to false to restore real threat lookups. const DEMO_MODE = true;
 const DEMO_MODE = false;
 
-export function createCheckUrlRouter(
-  aggregator: ThreatAggregator,
-  cache: TtlCache<CachedPayload>
-): Router {
+export function createCheckUrlRouter(aggregator: ThreatAggregator, cache: TtlCache<CachedPayload>): Router {
   const router = Router();
 
   router.post('/check-url', async (req: Request, res: Response) => {

@@ -1,11 +1,8 @@
-// backend/src/lib/cache.ts
 
 /**
- * Minimal in-memory TTL cache.
- *
- * A production deployment would use Redis, but for a single-process MVP
- * this is correct and dependency-free. The interface is deliberately
- * narrow so swapping in Redis later is a one-file change.
+ Minimal in-memory TTL cache.
+
+ A production deployment would use Redis, but for a single-process MVP this is correct and dependency-free. The interface is deliberately narrow so swapping in Redis later is a one-file change.
  */
 
 interface Entry<V> {
@@ -19,7 +16,7 @@ export class TtlCache<V> {
   constructor(
     private readonly ttlMs: number,
     private readonly maxEntries: number
-  ) {}
+  ) { }
 
   get(key: string): V | null {
     const entry = this.store.get(key);
@@ -34,7 +31,6 @@ export class TtlCache<V> {
 
   set(key: string, value: V): void {
     if (this.store.size >= this.maxEntries) {
-      // Simple eviction: drop the oldest inserted key.
       const oldestKey = this.store.keys().next().value;
       if (oldestKey !== undefined) this.store.delete(oldestKey);
     }

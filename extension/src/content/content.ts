@@ -1,10 +1,4 @@
-// extension/src/content/content.ts
-
-import type {
-  ScanRequestMessage,
-  ScanResponseMessage,
-  ScanResult,
-} from '../lib/types.js';
+import type { ScanRequestMessage, ScanResponseMessage, ScanResult } from '../lib/types.js';
 
 // Guard against double-injection on SPA navigations.
 if (!(window as unknown as { __tgInjected?: boolean }).__tgInjected) {
@@ -15,7 +9,6 @@ if (!(window as unknown as { __tgInjected?: boolean }).__tgInjected) {
 function run(): void {
   const url = window.location.href;
 
-  // Skip internal browser pages.
   if (!/^https?:/.test(url)) return;
 
   const message: ScanRequestMessage = { type: 'SCAN_URL', url };
@@ -38,13 +31,11 @@ function isScanResponse(value: unknown): value is ScanResponseMessage {
   return v.type === 'SCAN_RESULT' && typeof v.result === 'object' && v.result !== null;
 }
 
-// =============================================================================
-// Warning overlay
-//
-// Built with createElement + textContent, never innerHTML. Threat-data strings
-// come from external APIs and MUST be treated as untrusted.
-// =============================================================================
-
+/* 
+ Warning overlay
+ Built with createElement + textContent, never innerHTML. Threat-data strings
+ come from external APIs and MUST be treated as untrusted.
+*/
 function renderWarning(result: ScanResult): void {
   if (document.getElementById('tg-overlay')) return;
 
@@ -86,15 +77,8 @@ function renderWarning(result: ScanResult): void {
   document.body.appendChild(overlay);
 }
 
-/**
- * Tiny typed createElement helper. Keeps the DOM-building code readable
- * without ever touching innerHTML.
- */
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string> = {},
-  text?: string
-): HTMLElementTagNameMap[K] {
+// Tiny typed createElement helper. Keeps the DOM-building code readable without ever touching innerHTML.
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
     node.setAttribute(key, value);

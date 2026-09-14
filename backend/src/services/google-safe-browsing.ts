@@ -1,5 +1,3 @@
-// backend/src/services/google-safe-browsing.ts
-
 import type { ThreatService, ThreatSignal } from '../lib/types.js';
 
 const ENDPOINT = 'https://safebrowsing.googleapis.com/v4/threatMatches:find';
@@ -16,7 +14,7 @@ interface GsbResponse {
 export class GoogleSafeBrowsingService implements ThreatService {
   readonly source = 'google-safe-browsing' as const;
 
-  constructor(private readonly apiKey: string) {}
+  constructor(private readonly apiKey: string) { }
 
   async check(url: string): Promise<ThreatSignal> {
     const body = {

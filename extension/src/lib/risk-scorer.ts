@@ -1,18 +1,14 @@
-// extension/src/lib/risk-scorer.ts
-
 import { SOURCE_WEIGHTS, VERDICT_THRESHOLDS } from './constants.js';
 import type { ScanResult, ThreatSignal, ThreatSource, Verdict } from './types.js';
 
 /**
- * Combine normalized threat signals into a 0–100 risk score and a verdict.
- *
- * Design notes:
- * - Sources are weighted (Safe Browsing is the strongest signal, PhishTank
- *   the most conservative).
- * - Sources that didn't respond are excluded from `sourcesResponded` so the
- *   UI can distinguish "clean" from "unknown".
- * - The score is capped at 100.
- * - The verdict is bucketed by VERDICT_THRESHOLDS.
+  Combine normalized threat signals into a 0–100 risk score and a verdict.
+ 
+  Design notes:
+  - Sources are weighted (Safe Browsing is the strongest signal, PhishTank the most conservative).
+  - Sources that didn't respond are excluded from `sourcesResponded` so the UI can distinguish "clean" from "unknown".
+  - The score is capped at 100.
+  - The verdict is bucketed by VERDICT_THRESHOLDS.
  */
 export function scoreUrl(url: string, signals: ThreatSignal[]): ScanResult {
   const responded: ThreatSource[] = [];
@@ -59,4 +55,5 @@ const SOURCE_LABELS: Record<ThreatSource, string> = {
   'google-safe-browsing': 'Google Safe Browsing',
   virustotal: 'VirusTotal',
   phishtank: 'PhishTank',
+  urlhaus: 'URLhaus',
 };

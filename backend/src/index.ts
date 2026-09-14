@@ -1,8 +1,5 @@
-// backend/src/index.ts
-
 import express from 'express';
 import cors from 'cors';
-
 import { loadEnv } from './lib/env.js';
 import { TtlCache } from './lib/cache.js';
 import { GoogleSafeBrowsingService } from './services/google-safe-browsing.js';
@@ -21,10 +18,10 @@ function main(): void {
   const env = loadEnv();
 
   const services = [
-  new GoogleSafeBrowsingService(env.GOOGLE_SAFE_BROWSING_API_KEY),
-  new VirusTotalService(env.VIRUSTOTAL_API_KEY),
-  new PhishTankService(env.PHISHTANK_API_KEY),
-  new UrlhausService(env.URLHAUS_AUTH_KEY),
+    new GoogleSafeBrowsingService(env.GOOGLE_SAFE_BROWSING_API_KEY),
+    new VirusTotalService(env.VIRUSTOTAL_API_KEY),
+    new PhishTankService(env.PHISHTANK_API_KEY),
+    new UrlhausService(env.URLHAUS_AUTH_KEY),
   ];
 
   const aggregator = new ThreatAggregator(services);

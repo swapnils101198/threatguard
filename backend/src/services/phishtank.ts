@@ -1,5 +1,3 @@
-// backend/src/services/phishtank.ts
-
 import type { ThreatService, ThreatSignal } from '../lib/types.js';
 
 const ENDPOINT = 'https://checkurl.phishtank.com/checkurl/';
@@ -18,7 +16,7 @@ interface PtResponse {
 export class PhishTankService implements ThreatService {
   readonly source = 'phishtank' as const;
 
-  constructor(private readonly apiKey: string) {}
+  constructor(private readonly apiKey: string) { }
 
   async check(url: string): Promise<ThreatSignal> {
     const body = new URLSearchParams({

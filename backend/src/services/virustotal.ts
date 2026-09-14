@@ -1,5 +1,3 @@
-// backend/src/services/virustotal.ts
-
 import type { ThreatService, ThreatSignal } from '../lib/types.js';
 
 const SUBMIT_ENDPOINT = 'https://www.virustotal.com/api/v3/urls';
@@ -31,7 +29,7 @@ interface VtReportResponse {
 export class VirusTotalService implements ThreatService {
   readonly source = 'virustotal' as const;
 
-  constructor(private readonly apiKey: string) {}
+  constructor(private readonly apiKey: string) { }
 
   async check(url: string): Promise<ThreatSignal> {
     const analysisId = await this.submit(url);

@@ -1,29 +1,22 @@
-// backend/src/lib/env.ts
-
 import { config } from 'dotenv';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-// Load .env from the repository root regardless of the process's current
-// working directory. npm workspaces run scripts with cwd = backend/, so the
-// default dotenv behaviour would look for backend/.env instead of the root.
-//
-// From this file (backend/src/lib/env.ts in dev, backend/dist/lib/env.js in
-// prod), `../../..` always resolves to the repository root.
+/* Load .env from the repository root regardless of the process's current
+    working directory. npm workspaces run scripts with cwd = backend/, so the
+    default dotenv behaviour would look for backend/.env instead of the root.
+ */
+// From this file (backend/src/lib/env.ts in dev, backend/dist/lib/env.js in prod), `../../..` always resolves to the repository root.
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
 config({ path: path.join(repoRoot, '.env') });
 
 /**
- * Typed, validated access to environment configuration.
- *
- * Policy:
- * - In development: missing API keys produce a warning and an empty string,
- *   so the server can boot and demonstrate graceful degradation when a
- *   threat source is unavailable. This is the behavior the assignment
- *   explicitly asks us to demonstrate.
- * - In production: missing API keys are a hard startup failure. Shipping
- *   a production build without keys would silently break threat lookups.
+ Typed, validated access to environment configuration.
+ 
+Policy:
+ - In development: missing API keys produce a warning and an empty string, so the server can boot and demonstrate graceful degradation when a threat source is unavailable. This is the behavior the assignment explicitly asks us to demonstrate.
+ - In production: missing API keys are a hard startup failure. Shipping a production build without keys would silently break threat lookups.
  */
 
 export interface Env {
