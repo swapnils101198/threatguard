@@ -1,0 +1,23 @@
+{
+  "name": "threatguard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Real-time URL threat intelligence for Chromium browsers",
+  "workspaces": [
+    "extension",
+    "backend"
+  ],
+  "scripts": {
+    "build:extension": "npm run build --workspace=extension",
+    "dev:extension": "npm run dev --workspace=extension",
+    "dev:backend": "npm run dev --workspace=backend",
+    "build:backend": "npm run build --workspace=backend",
+    "build": "npm run build:extension && npm run build:backend",
+    "typecheck": "tsc --build --pretty"
+  },
+  "author": "Swapnil",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  }
+}

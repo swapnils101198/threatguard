@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>ThreatGuard</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+
+<body data-verdict="idle">
+  <header class="tg-header">
+    <div class="tg-brand">
+      <img class="tg-logo" src="../assets/icon-48.png" alt="" />
+      <span>ThreatGuard</span>
+    </div>
+    <span class="tg-badge" id="tg-status">Idle</span>
+  </header>
+
+  <section class="tg-verdict">
+    <div class="tg-mark" id="tg-mark">…</div>
+    <div class="tg-verdict-text">
+      <div class="tg-label" id="tg-label">Scanning…</div>
+      <div class="tg-meta">
+        <span id="tg-sources">waiting</span>
+        <span class="tg-sep">·</span>
+        <span class="tg-meta-key">score</span>
+        <span id="tg-score">—</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="tg-section">
+    <div class="tg-section-label">Current page</div>
+    <div class="tg-url" id="tg-url" title="">—</div>
+  </div>
+
+  <ul class="tg-reasons" id="tg-reasons"></ul>
+
+  <div class="tg-actions">
+    <button id="tg-rescan" class="tg-btn">Rescan</button>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+
+</html>
