@@ -4,6 +4,9 @@ A Manifest V3 Chromium extension that scores the risk of the page you are
 visiting against multiple threat-intelligence sources, and warns you when the
 page looks dangerous.
 
+
+**Repository:** https://github.com/swapnils101198/threatguard
+
 Runs silently in the background on safe pages. On risky pages, it renders a
 full-page overlay with the risk score, the sources that flagged the URL, and
 two options — proceed or go back.
