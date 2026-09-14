@@ -1,14 +1,26 @@
 # Threat Intelligence Sources
 
-ThreatGuard queries three independent threat-intelligence sources. All three
+ThreatGuard queries **four** independent threat-intelligence sources. All four
 are integrated at the code level in `backend/src/services/`. The system runs
-whether or not API keys are present — missing keys result in that source being
-skipped, and the request still returns `200` with whatever signals were
-available.
+whether or not API keys are present — missing or rejected keys result in that
+source being skipped, and the request still returns `200` with whatever
+signals were available.
 
 Each source below is pinned to a specific API version. The version choice,
 and the reason for it, are documented so the integration remains
 reproducible as providers evolve.
+
+**Status at time of submission:**
+
+| Source | Status | Reason |
+|--------|--------|--------|
+| Google Safe Browsing | ✅ Live | API key configured and verified |
+| VirusTotal | ✅ Live | API key configured and verified |
+| URLhaus | ✅ Live | Auth-Key configured and verified |
+| PhishTank | ⚠️ Unreachable | Provider has disabled new-user registration; the endpoint returns `403` for our requests |
+
+The PhishTank failure is a real-world demonstration of the aggregator's
+failure-handling path — see the "Failure handling" section below.
 
 ## 1. Google Safe Browsing
 
@@ -53,16 +65,16 @@ For this MVP, we use **v4**, for three concrete reasons:
    under `v5alpha1`. `hashes:search` is on stable `v5`. We prefer to depend
    on a stable endpoint.
 3. **Privacy posture.** v4 sends the raw URL in the request body. For a
-   consumer URL-checking tool, the URL is already going to be sent to
-   VirusTotal and PhishTank as well, so v4 does not degrade the overall
-   privacy stance of the product. A future version that specifically
-   prioritizes URL confidentiality would move to v5 with the Oblivious HTTP
-   Gateway.
+   consumer URL-checking tool, the URL is also sent to VirusTotal, URLhaus,
+   and PhishTank, so v4 does not degrade the overall privacy stance of the
+   product. A future version that specifically prioritizes URL
+   confidentiality would move to v5 with the Oblivious HTTP Gateway.
 
-Both methods available in v4 and v5 — `urls.search` (raw URL) and
-`hashes.search` (hash-prefix only) — are viable. We use the URL-based method
-because the hashing path requires canonicalization and hash-prefix logic
-whose complexity is not justified by the current privacy model.
+### Verification
+
+Against Google's own test URL, `http://testsafebrowsing.appspot.com/s/malware.html`,
+the API returns a `MALWARE` match — confirmed in the live response captured in
+`docs/submission-notes.md`.
 
 ## 2. VirusTotal
 
@@ -112,24 +124,85 @@ webhook, job queue, or multi-poll loop. A production implementation would
 persist the analysis ID, poll asynchronously, and cache the final verdict —
 see `submission-notes.md`.
 
-## 3. PhishTank
+## 3. URLhaus (abuse.ch)
+
+**API version used:** URLhaus Community API **v1**
+
+- **Endpoint:** `POST https://urlhaus-api.abuse.ch/v1/url/`
+- **Authentication:** Auth-Key sent in the `Auth-Key` request header
+- **Response format:** JSON
+- **Cost:** Free, under abuse.ch's Fair Use policy. Commercial use requires
+  the enhanced abuse.ch commercial API.
+- **Get a key:** https://auth.abuse.ch/ — sign in with at least two identity
+  providers (Google + GitHub, for example), then generate an Auth-Key on the
+  profile page.
+- **Code:** `backend/src/services/urlhaus.ts`
+
+### What URLhaus provides
+
+URLhaus is operated by abuse.ch and Spamhaus. It tracks URLs actively
+distributing malware — executables, droppers, malicious scripts, and payload
+delivery endpoints. It is distinct from phishing lists in that its focus is
+**malware distribution**, not credential theft or social engineering. This
+complements the other three sources:
+
+- Google Safe Browsing covers malware AND social engineering broadly.
+- VirusTotal aggregates many engines and catches things Google's lists miss.
+- URLhaus has fresher data on active malware-distribution campaigns.
+
+### Response contract
+
+URLhaus returns a `query_status` field:
+
+- `is_listed` — the URL is a known malware-distribution URL (flagged)
+- `not_listed` — URLhaus checked and the URL is not present (clean)
+- `no_results` — URLhaus has no record (clean)
+- `invalid_url` — the URL failed URLhaus's own validation (treated as clean)
+
+We flag only on `is_listed`. Every other status is treated as a clean
+response — URLhaus's API returns a distinct status for "unknown" versus
+"malicious", and we honor that distinction.
+
+### Auth-Key requirements
+
+abuse.ch requires an Auth-Key on **every** URLhaus API request. Anonymous
+requests return `401 Unauthorized` or, in our experience, `403 Forbidden`.
+The key is issued at `auth.abuse.ch` and must be included in the `Auth-Key`
+header (not a query parameter, and not as a Bearer token).
+
+To generate a key, your abuse.ch account must have **at least two
+authentication providers** linked. This is a recovery-method requirement
+enforced by abuse.ch. Google + GitHub is the fastest combination.
+
+### Fair Use
+
+abuse.ch enforces Fair Use. Accounts exceeding reasonable query volume are
+temporarily limited for up to 72 hours; repeated abuse leads to long-term
+restrictions. For a consumer URL-checking extension at MVP volumes, this is
+not a concern — but a production deployment would need either a paid
+commercial plan or a local database mirror.
+
+## 4. PhishTank
+
+**Status: provider has disabled new-user registration.** The registration
+page currently displays *"New user registration temporarily disabled"* and
+repeated attempts trigger an IP-level block. The integration code remains in
+`backend/src/services/phishtank.ts` and is functionally correct.
 
 **API version used:** `checkurl/` endpoint (current)
 
 - **Endpoint:** `POST https://checkurl.phishtank.com/checkurl/`
 - **Authentication:** Optional application key (`app_key` parameter). Without
-  a key, rate limits are tighter but the endpoint still works.
+  a key, rate limits are tighter but the endpoint still works — except in our
+  case, where the endpoint returns `403` regardless.
 - **Request parameters:**
   - `url` — the URL to check (URL-encoded or base64-encoded)
   - `format` — response format: `xml` (default), `php`, or `json`
   - `app_key` — optional application key
 - **Response format:** JSON (we specify `format=json`)
 - **User-Agent:** PhishTank explicitly requires a descriptive User-Agent.
-  Generic or blank User-Agents are rate-limited more aggressively or pushed
-  to additional security checks. Our client sends
-  `User-Agent: ThreatGuard/0.1.0`.
+  Our client sends `User-Agent: ThreatGuard/0.1.0`.
 - **Cost:** Free, community-driven
-- **Get a key:** https://www.phishtank.com/api_register.php
 - **Code:** `backend/src/services/phishtank.ts`
 
 ### How PhishTank reports a match
@@ -153,26 +226,30 @@ Exceeded") when they are hit. Response headers identify the current window:
 - `X-Request-Limit` — max requests allowed in that window
 - `X-Request-Count` — requests already consumed in that window
 
-Our client treats any non-200 response (including 509) as a source failure
-and lets the aggregator handle it. There is no special-case for 509 in the
-MVP — it is handled identically to a network error or a 5xx, which is the
+Our client treats any non-200 response (including 403 and 509) as a source
+failure and lets the aggregator handle it. There is no special case — a
+failed PhishTank is handled identically to a network error, which is the
 correct behavior for fail-open.
 
-For applications that repeatedly hit the limit, PhishTank recommends
-downloading a local copy of the database periodically rather than querying
-per-URL. Our 30-day plan moves in that direction — see `submission-notes.md`.
+### Replacement plan
 
-## Why these three
+If PhishTank reopens registration, no code change is required — add a key to
+`.env` and the source resumes working. If it does not reopen, the 30-day plan
+in `submission-notes.md` proposes integrating additional free sources
+(OpenPhish, additional abuse.ch feeds) to maintain four-source coverage.
+
+## Why these four
 
 | Source | Strength | Weakness |
 |--------|----------|----------|
 | Google Safe Browsing | Fast, high-signal, industry-standard malware / phishing lists | Non-commercial license restriction; URL sent in plaintext to Google |
 | VirusTotal | Broad coverage — 70+ engines; catches things Google's lists miss | Slow (submit + poll); strict rate limits; Public API is non-commercial |
-| PhishTank | Community-curated, moderator-verified phishing URLs; free | Smaller coverage than the others; phishing-only; rate-limited |
+| URLhaus | Live malware-distribution feed; fresher than static lists | Auth-Key required; abuse.ch Fair Use limits |
+| PhishTank | Community-curated, moderator-verified phishing URLs; free | Registration currently disabled; smaller coverage; phishing-only |
 
-Running all three gives **coverage diversity** (malware, phishing, unwanted
-software) and **failure tolerance** — if one source is down or rate-limited,
-the other two still produce a verdict.
+Running all four gives **coverage diversity** (malware, malware distribution,
+phishing, multi-engine aggregation) and **failure tolerance** — if one source
+is down or rate-limited, the other three still produce a verdict.
 
 ## How signals are combined
 
@@ -183,6 +260,7 @@ weight and sums the weights of every source that flagged the URL:
 |--------|---------------------|
 | Google Safe Browsing | +50 |
 | VirusTotal | +40 |
+| URLhaus | +35 |
 | PhishTank | +30 |
 
 Score is capped at 100 and bucketed into a verdict:
@@ -194,13 +272,21 @@ Score is capped at 100 and bucketed into a verdict:
 | 50 – 100 | `dangerous` |
 
 A single strong source (Google Safe Browsing) can trigger `dangerous` on its
-own. Weaker sources (PhishTank) require corroboration or a distinct signal to
-push the score higher.
+own. Weaker sources require corroboration or a distinct signal to push the
+score higher.
+
+**Rationale for the weights:** Google Safe Browsing's verdict is the strongest
+single signal because its lists are curated by Google at internet scale.
+VirusTotal is weighted slightly lower because its verdict aggregates many
+engines of varying quality — a detection there is meaningful but not as
+authoritative as a Google listing. URLhaus's feed is malware-focused and
+specific (few false positives), so it sits just below VirusTotal. PhishTank's
+phishing-only scope and smaller dataset justify the lowest weight.
 
 ## Failure handling
 
-If a source fails — network error, timeout, HTTP 4xx/5xx (including PhishTank's
-509), or malformed response — the aggregator
+If a source fails — network error, timeout, HTTP 4xx/5xx (including
+PhishTank's 403 and 509), or malformed response — the aggregator
 (`backend/src/services/aggregator.ts`) catches the rejection and **does not**
 include that source in the response. The extension sees fewer
 `sourcesResponded` than expected and reports it in the popup footer.
@@ -211,15 +297,16 @@ displays "No sources responded" in the popup. This is a deliberate
 **fail-open** decision for a consumer tool — the alternative (fail-closed)
 would block legitimate browsing during any backend outage.
 
-The terminal where the backend runs logs each source failure:
+The terminal where the backend runs logs each source failure. Real output
+from the current build:
 
 ```
-[aggregator] google-safe-browsing failed: Safe Browsing responded 403
-[aggregator] virustotal failed: VirusTotal submit responded 401
-[aggregator] phishtank failed: PhishTank responded 509
+[aggregator] phishtank failed: PhishTank responded 403
 ```
 
-This is the visible evidence of the failure-handling requirement.
+Only one failure line — Google Safe Browsing, VirusTotal, and URLhaus all
+responded normally. The request returned `200` with the three successful
+signals. This is the visible evidence of the failure-handling requirement.
 
 ## Version summary
 
@@ -230,7 +317,8 @@ commercial-use posture:
 |--------|-------------|------------|---------------------|
 | Google Safe Browsing | Lookup API v4 | Yes | No — requires Web Risk |
 | VirusTotal | Public API v3 | Yes | No — requires Premium API |
+| URLhaus | Community API v1 | Yes (Fair Use) | No — requires commercial API |
 | PhishTank | current `checkurl/` | Yes | Yes (community source) |
 
-The two commercial restrictions are the reason the project documents a
+The three commercial restrictions are the reason the project documents a
 production migration path in `submission-notes.md`.

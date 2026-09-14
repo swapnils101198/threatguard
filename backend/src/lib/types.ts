@@ -1,7 +1,7 @@
 // backend/src/lib/types.ts
 
 /** Mirrors the extension's ThreatSource union. Keep in sync. */
-export type ThreatSource = 'google-safe-browsing' | 'virustotal' | 'phishtank';
+export type ThreatSource = 'google-safe-browsing' | 'virustotal' | 'phishtank' | 'urlhaus';
 
 /** One normalized signal from a single threat-intel provider. */
 export interface ThreatSignal {

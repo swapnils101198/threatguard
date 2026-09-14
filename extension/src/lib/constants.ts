@@ -23,6 +23,7 @@ export const SOURCE_WEIGHTS = {
   'google-safe-browsing': 50,
   virustotal: 40,
   phishtank: 30,
+  urlhaus: 35,
 } as const;
 
 /**

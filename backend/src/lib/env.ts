@@ -1,6 +1,18 @@
 // backend/src/lib/env.ts
 
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+// Load .env from the repository root regardless of the process's current
+// working directory. npm workspaces run scripts with cwd = backend/, so the
+// default dotenv behaviour would look for backend/.env instead of the root.
+//
+// From this file (backend/src/lib/env.ts in dev, backend/dist/lib/env.js in
+// prod), `../../..` always resolves to the repository root.
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(here, '../../..');
+config({ path: path.join(repoRoot, '.env') });
 
 /**
  * Typed, validated access to environment configuration.
@@ -20,6 +32,7 @@ export interface Env {
   GOOGLE_SAFE_BROWSING_API_KEY: string;
   VIRUSTOTAL_API_KEY: string;
   PHISHTANK_API_KEY: string;
+  URLHAUS_AUTH_KEY: string;
   CACHE_TTL_SECONDS: number;
   CACHE_MAX_ENTRIES: number;
 }
@@ -64,6 +77,7 @@ export function loadEnv(): Env {
     GOOGLE_SAFE_BROWSING_API_KEY: apiKey('GOOGLE_SAFE_BROWSING_API_KEY', isProduction),
     VIRUSTOTAL_API_KEY: apiKey('VIRUSTOTAL_API_KEY', isProduction),
     PHISHTANK_API_KEY: apiKey('PHISHTANK_API_KEY', isProduction),
+    URLHAUS_AUTH_KEY: apiKey('URLHAUS_AUTH_KEY', isProduction),
     CACHE_TTL_SECONDS: optionalNumber('CACHE_TTL_SECONDS', 3600),
     CACHE_MAX_ENTRIES: optionalNumber('CACHE_MAX_ENTRIES', 500),
   };

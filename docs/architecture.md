@@ -25,6 +25,7 @@ flowchart TD
         GSB["Google Safe Browsing"]
         VT["VirusTotal"]
         PT["PhishTank"]
+        UH["URLhaus"]
     end
 
     CS -- "SCAN_URL" --> Cache
@@ -36,7 +37,9 @@ flowchart TD
     BE --> GSB
     BE --> VT
     BE --> PT
+    BE --> UH
 ```
+
 ## Components
 
 ### Extension (`extension/`)
@@ -55,12 +58,12 @@ API keys.
 ### Backend (`backend/`)
 
 Small Express app. Its only job is to hold API keys and normalize responses
-from the three threat sources.
+from the four threat sources.
 
 | File | Role |
 |------|------|
 | `src/index.ts` | Wiring: env, cache, services, aggregator, router, HTTP server. |
-| `src/lib/env.ts` | Typed env reader. Fails hard on missing keys in production; warns in development. |
+| `src/lib/env.ts` | Typed env reader. Loads `.env` from the repo root regardless of cwd. Fails hard on missing keys in production; warns in development. |
 | `src/lib/cache.ts` | In-memory TTL cache. |
 | `src/services/*.ts` | One class per threat source, plus the aggregator. |
 | `src/routes/check-url.ts` | `POST /api/check-url` handler. |
@@ -110,9 +113,10 @@ Every outbound HTTP request has an `AbortController`-based timeout:
 | Extension → backend | 6 s (`fetchWithTimeout` in `extension/src/lib`) |
 | Backend → Google Safe Browsing | 5 s |
 | Backend → VirusTotal (submit and report) | 8 s each |
+| Backend → URLhaus | 6 s |
 | Backend → PhishTank | 6 s |
 
-The extension fires one request to the backend. The backend fires three
+The extension fires one request to the backend. The backend fires four
 requests in parallel (`Promise.allSettled`), so total wall time is bounded by
 the slowest source, not their sum.
 
@@ -127,6 +131,16 @@ the popup as "No sources responded."
 This is **fail-open**: the user is never blocked because a source is down. The
 alternative (fail-closed) would be appropriate for enterprise but produces
 unacceptable false positives for a consumer tool.
+
+**Live example (verified on the current build):**
+
+```
+[aggregator] phishtank failed: PhishTank responded 403
+```
+
+PhishTank's 403 — because the provider has disabled new-user registration —
+is caught, logged, and excluded. The other three sources respond normally and
+the request returns `200`.
 
 ## Caching
 
@@ -143,12 +157,12 @@ oldest-inserted-first. The backend cache is bounded at 500 entries by default
 
 ## False positives and false negatives
 
-- **False positive prevention:** a single weak signal (PhishTank alone) produces
-  `suspicious`, not `dangerous`. `dangerous` requires either Google Safe
-  Browsing or a combination of weaker sources crossing the 50-point threshold.
-- **False negative mitigation:** three independent sources cover different
-  threat classes. VirusTotal catches threats Google's lists miss and vice
-  versa.
+- **False positive prevention:** a single weak signal produces `suspicious`,
+  not `dangerous`. `dangerous` requires either Google Safe Browsing or a
+  combination of weaker sources crossing the 50-point threshold.
+- **False negative mitigation:** four independent sources cover different
+  threat classes — malware distribution (Google, URLhaus), phishing
+  (PhishTank), and a broad multi-engine aggregation (VirusTotal).
 - **No auto-blocking.** The extension warns; the user retains control. This is
   a deliberate trade-off: a blocking extension that flags a legitimate page is
   far more damaging to user trust than one that shows a warning.
@@ -163,6 +177,8 @@ oldest-inserted-first. The backend cache is bounded at 500 entries by default
   making any outbound request.
 - The extension validates the backend's response shape with a runtime type
   guard (`isScanResponse`) before using it.
+- `ThreatSignal.detail` is a free-form string from third-party APIs. It is
+  rendered only via `textContent` and never interpolated into markup.
 
 ## Security considerations for production
 
@@ -178,6 +194,9 @@ oldest-inserted-first. The backend cache is bounded at 500 entries by default
    `localhost:8787` only.
 6. **Rate limiting** on the backend is not implemented in this MVP; it is one
    of the first additions required before public deployment.
+7. **Dotenv path is explicit.** `backend/src/lib/env.ts` loads `.env` from
+   the repo root via `fileURLToPath` + `path.resolve`, so the file is read
+   consistently regardless of the current working directory.
 
 ## Build pipeline
 

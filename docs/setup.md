@@ -27,37 +27,68 @@ in a single step. npm hoists shared dependencies to the root `node_modules/`.
 
 ## Configure the backend
 
-The backend reads its configuration from a `.env` file at the repository root.
+The backend reads its configuration from a `.env` file at the **repository
+root**. `backend/src/lib/env.ts` resolves the path explicitly via
+`fileURLToPath` + `path.resolve`, so the file is loaded regardless of which
+directory the process runs from.
 
 ```bash
 cp .env.example .env
 ```
 
-Then edit `.env` and fill in the three API keys:
+Then edit `.env` and fill in the four API keys:
 
 ```
 GOOGLE_SAFE_BROWSING_API_KEY=...
 VIRUSTOTAL_API_KEY=...
-PHISHTANK_API_KEY=...
+URLHAUS_AUTH_KEY=...
+PHISHTANK_API_KEY=...        # optional — see below
 ```
 
-**Getting keys:**
+### Getting the keys
 
-- **Google Safe Browsing** — free for non-commercial use.
-  https://developers.google.com/safe-browsing/v4/get-started
-- **VirusTotal** — free public API tier (4 req/min, 500 req/day, non-commercial).
-  https://www.virustotal.com/gui/join-us
-- **PhishTank** — free, community-driven. Key is optional but raises rate limits.
-  https://www.phishtank.com/api_register.php
+**Google Safe Browsing** — free for non-commercial use.
+
+1. Go to https://console.cloud.google.com/projectcreate
+2. Create a project (no billing required for Safe Browsing)
+3. **APIs & Services** → **Library** → search "Safe Browsing API" → **Enable**
+4. **APIs & Services** → **Credentials** → **+ Create Credentials** → **API key**
+5. Optionally restrict the key to the Safe Browsing API
+
+**VirusTotal** — free public tier (4 req/min, 500 req/day; non-commercial).
+
+1. Sign up at https://www.virustotal.com/gui/join-us
+2. Verify your email
+3. Click your avatar → **API key** → copy
+
+**URLhaus (abuse.ch)** — free under Fair Use. Auth-Key required.
+
+1. Go to https://auth.abuse.ch/
+2. Sign up with **at least two providers** (Google + GitHub, for example).
+   This is a recovery-method requirement enforced by abuse.ch — one provider
+   is not enough and the Auth-Key will not persist.
+3. Save your profile
+4. Scroll to **Auth Key** → **Generate Key**
+5. **Click Save Profile again** to persist the key on abuse.ch's backend
+6. Verify the key field still shows the key after the page reloads
+
+**PhishTank** — free, community-driven. **Currently unavailable.**
+
+Registration at https://www.phishtank.com/api_register.php is disabled by the
+provider. The integration code remains in place and will resume working if
+registration reopens. Leaving `PHISHTANK_API_KEY` empty will produce a warning
+at startup and a `403` on each request — both are handled by the aggregator.
 
 See `threat-intel-sources.md` for full details on each provider, including
-commercial-use restrictions.
+API versions and commercial-use restrictions.
 
-**It is fine to leave the keys blank.** The backend will start with warnings,
-each source will fail on the first request, and the aggregator will return an
-empty signals array. This is deliberate **fail-open** behavior and
-demonstrates the required failure handling. The popup will show
-"No sources responded."
+### It's fine to leave keys blank
+
+The backend will start with warnings, each configured-blank source will fail
+on the first request, and the aggregator will return whatever signals were
+available. This is deliberate **fail-open** behavior and demonstrates the
+required failure handling. The popup will show "No sources responded" if
+every source fails.
 
 ## Run the backend
 
@@ -67,11 +98,16 @@ From the repository root:
 npm run dev:backend
 ```
 
-Expected startup output:
+Expected startup output with all keys configured:
 
 ```
-[env] GOOGLE_SAFE_BROWSING_API_KEY is not set — related threat source will be skipped
-[env] VIRUSTOTAL_API_KEY is not set — related threat source will be skipped
+[threatguard-backend] listening on http://localhost:8787
+[threatguard-backend] env: development
+```
+
+Expected startup output with `PHISHTANK_API_KEY` still blank:
+
+```
 [env] PHISHTANK_API_KEY is not set — related threat source will be skipped
 [threatguard-backend] listening on http://localhost:8787
 [threatguard-backend] env: development
@@ -85,13 +121,46 @@ curl -X POST http://localhost:8787/api/check-url \
   -d '{"url":"https://example.com"}'
 ```
 
-Expected response:
+Expected response (against a clean URL with all three working sources):
 
 ```json
-{"signals":[],"cached":false}
+{
+  "signals": [
+    {"source": "google-safe-browsing", "flagged": false},
+    {"source": "virustotal", "flagged": false},
+    {"source": "urlhaus", "flagged": false}
+  ],
+  "cached": false
+}
 ```
 
 Repeat the same command — the second response should say `"cached":true`.
+
+### Verify against a known-malicious URL
+
+Google provides a URL that is guaranteed to be flagged on its malware lists:
+
+```bash
+curl -X POST http://localhost:8787/api/check-url \
+  -H "Content-Type: application/json" \
+  -d '{"url":"http://testsafebrowsing.appspot.com/s/malware.html"}'
+```
+
+Expected response:
+
+```json
+{
+  "signals": [
+    {"source": "google-safe-browsing", "flagged": true, "detail": "MALWARE"},
+    {"source": "virustotal", "flagged": false},
+    {"source": "urlhaus", "flagged": false}
+  ],
+  "cached": false
+}
+```
+
+The backend terminal should show at most one failure line — PhishTank's `403`
+if the key is unset. No failure lines for the other sources.
 
 ## Build the extension
 
@@ -139,7 +208,7 @@ extension/dist/
 3. The popup shows:
    - URL: `https://example.com/`
    - Verdict: "No threats found" with a green checkmark
-   - "No sources responded" (because no keys are configured)
+   - "N sources checked" (three, with all working keys configured)
    - Score: `0/100`
    - A green **Rescan** pill button
 
@@ -149,7 +218,12 @@ extension/dist/
 ## See the warning overlay
 
 The warning overlay renders when the verdict is `suspicious` or `dangerous`.
-With no API keys configured, this never happens naturally. To demo it:
+
+**Option A — use a real malicious URL.** Visit any URL that Google Safe
+Browsing, VirusTotal, or URLhaus has flagged. The overlay renders automatically.
+
+**Option B — use the demo flag.** If you want to demo the overlay without a
+flagged URL:
 
 1. Stop the backend (**Ctrl+C** in its terminal)
 2. Open `backend/src/routes/check-url.ts`
@@ -189,6 +263,11 @@ The backend is not running, or `BACKEND_BASE_URL` in
 `extension/src/lib/constants.ts` points to the wrong port. Default is
 `http://localhost:8787`.
 
+**Backend warns `GOOGLE_SAFE_BROWSING_API_KEY is not set` even though `.env`
+has the key**
+You edited `.env` while the backend was running. Environment variables are
+read once at process start. Stop the backend (**Ctrl+C**) and restart it.
+
 **Backend exits with `Missing required env var: ...`**
 You are running in production mode. Development allows missing keys. Confirm
 `NODE_ENV=development` in `.env`.
@@ -202,3 +281,26 @@ missing, restore it from the repository.
 Open `chrome://extensions`, click the error count, and read the detail. Common
 cause: `dist/` was not rebuilt after a manifest or source change. Run
 `npm run build:extension` and reload the extension.
+
+**URLhaus returns `403` even though the Auth-Key is in `.env`**
+abuse.ch requires **two** linked authentication providers before an Auth-Key
+becomes valid. On your profile page at `auth.abuse.ch/user/me`, connect a
+second provider (GitHub, LinkedIn, or X), click **Save Profile**, then
+regenerate the Auth-Key and save again. If the key still fails, the account
+may be temporarily rate-limited — abuse.ch restricts accounts for up to 72
+hours after excessive query volume.
+
+**`EADDRINUSE: address already in use :::8787`**
+A previous backend process is still holding the port. On Windows:
+
+```bash
+netstat -ano | findstr :8787
+taskkill //F //PID <pid-from-above>
+```
+
+In PowerShell, use `Stop-Process -Id <pid> -Force` instead.
+
+**PhishTank always returns `403`**
+Registration at PhishTank is disabled by the provider. No action is
+required — the aggregator handles the failure and the other three sources
+continue to work. See `threat-intel-sources.md`.

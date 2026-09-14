@@ -4,7 +4,6 @@ A Manifest V3 Chromium extension that scores the risk of the page you are
 visiting against multiple threat-intelligence sources, and warns you when the
 page looks dangerous.
 
-
 **Repository:** https://github.com/swapnils101198/threatguard
 
 Runs silently in the background on safe pages. On risky pages, it renders a
@@ -14,26 +13,32 @@ two options — proceed or go back.
 ## What it does
 
 - Detects the URL of the current tab
-- Checks it against three independent threat-intelligence sources
+- Checks it against **four** independent threat-intelligence sources
 - Combines the results into a 0–100 risk score and a bucketed verdict
 - Renders a warning overlay when the verdict is `suspicious` or `dangerous`
 - Leaves safe pages untouched
 
 ## Threat intelligence sources
 
-| Source | What it provides | Cost |
-|--------|------------------|------|
-| [Google Safe Browsing](https://developers.google.com/safe-browsing/v4/get-started) | Malware, social engineering, unwanted software lists | Free (non-commercial) |
-| [VirusTotal](https://www.virustotal.com/gui/join-us) | Aggregated verdicts from 70+ engines | Free public tier |
-| [PhishTank](https://www.phishtank.com/api_register.php) | Community-verified phishing URLs | Free |
+| Source | What it provides | Status | Cost |
+|--------|------------------|--------|------|
+| [Google Safe Browsing](https://developers.google.com/safe-browsing/v4/get-started) | Malware, social engineering, unwanted software lists | Live | Free (non-commercial) |
+| [VirusTotal](https://www.virustotal.com/gui/join-us) | Aggregated verdicts from 70+ engines | Live | Free public tier |
+| [URLhaus](https://urlhaus.abuse.ch/api/) (abuse.ch) | Live malware-distribution URL feed | Live | Free (Auth-Key required) |
+| [PhishTank](https://www.phishtank.com/) | Community-verified phishing URLs | Temporarily unreachable — registration disabled by provider | Free |
 
-Full details, rate limits, and commercial-use restrictions are documented in
+Three of four sources are verified live in this build. PhishTank's new-user
+registration is currently disabled by the provider; the integration code
+remains in place and the aggregator handles the `403` gracefully.
+
+Full details, API versions, rate limits, and commercial-use restrictions are
+documented in
 [`docs/threat-intel-sources.md`](docs/threat-intel-sources.md).
 
 ## Architecture at a glance
 
 ```
-Chrome Tab  ──►  MV3 Service Worker  ──►  Express Backend  ──►  Three threat sources
+Chrome Tab  ──►  MV3 Service Worker  ──►  Express Backend  ──►  Four threat sources
 ```
 
 The extension never sees API keys. All third-party lookups go through the
@@ -68,9 +73,9 @@ Run the backend:
 npm run dev:backend
 ```
 
-The backend starts on `http://localhost:8787`. With no API keys, all three
-sources fail and the extension reports "No sources responded" — this is
-deliberate fail-open behavior and demonstrates the required failure handling.
+The backend starts on `http://localhost:8787`. With no API keys, all sources
+fail and the extension reports "No sources responded" — this is deliberate
+fail-open behavior and demonstrates the required failure handling.
 
 Full setup instructions, including how to see the warning overlay without
 live API keys: [`docs/setup.md`](docs/setup.md).
@@ -81,7 +86,7 @@ live API keys: [`docs/setup.md`](docs/setup.md).
 |------|----------|
 | [`docs/part1-product-research.md`](docs/part1-product-research.md) | Guard.io product research — product, stack, team, feasibility, build plan |
 | [`docs/architecture.md`](docs/architecture.md) | MV3 lifecycle, component split, caching, timeouts, failure handling, security |
-| [`docs/threat-intel-sources.md`](docs/threat-intel-sources.md) | Each source, endpoints, keys, rate limits, scoring model |
+| [`docs/threat-intel-sources.md`](docs/threat-intel-sources.md) | Each source, API version, endpoints, keys, rate limits, scoring model |
 | [`docs/setup.md`](docs/setup.md) | Install, configure, run, verify, troubleshoot |
 | [`docs/submission-notes.md`](docs/submission-notes.md) | AI-native notes, limitations, production changes, 30-day roadmap |
 
@@ -98,6 +103,25 @@ live API keys: [`docs/setup.md`](docs/setup.md).
 - **State via CSS variables.** One `data-verdict` attribute on `<body>`
   drives every stateful style in the popup. No duplicated CSS blocks.
 
+## Live verification
+
+Verified against real API keys on the current commit:
+
+```json
+{
+  "signals": [
+    {"source": "google-safe-browsing", "flagged": true, "detail": "MALWARE"},
+    {"source": "virustotal", "flagged": false},
+    {"source": "urlhaus", "flagged": false}
+  ],
+  "cached": false
+}
+```
+
+Request against a URL known to be on Google's malware list. Three sources
+responded in parallel; PhishTank failed cleanly and was excluded by the
+aggregator.
+
 ## Known limitations
 
 The MVP is intentionally scoped. Ten known limitations and what would change
@@ -106,6 +130,7 @@ in production are enumerated in
 
 Highlights:
 - No live threat data without configured API keys
+- PhishTank's registration is disabled by the provider — no new keys available
 - In-memory backend cache (no persistence across restarts)
 - No rate limiting on the backend
 - No automated test suite

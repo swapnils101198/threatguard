@@ -1,8 +1,7 @@
 // extension/src/lib/types.ts
 
 /** Which threat-intelligence source a signal came from. */
-export type ThreatSource = 'google-safe-browsing' | 'virustotal' | 'phishtank';
-
+export type ThreatSource = 'google-safe-browsing' | 'virustotal' | 'phishtank' | 'urlhaus';
 /** Normalized result from a single threat-intel provider. */
 export interface ThreatSignal {
   /** Which provider produced this signal. */

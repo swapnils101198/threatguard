@@ -10,6 +10,7 @@ import { VirusTotalService } from './services/virustotal.js';
 import { PhishTankService } from './services/phishtank.js';
 import { ThreatAggregator } from './services/aggregator.js';
 import { createCheckUrlRouter } from './routes/check-url.js';
+import { UrlhausService } from './services/urlhaus.js';
 import type { ThreatSignal } from './lib/types.js';
 
 interface CachedPayload {
@@ -20,9 +21,10 @@ function main(): void {
   const env = loadEnv();
 
   const services = [
-    new GoogleSafeBrowsingService(env.GOOGLE_SAFE_BROWSING_API_KEY),
-    new VirusTotalService(env.VIRUSTOTAL_API_KEY),
-    new PhishTankService(env.PHISHTANK_API_KEY),
+  new GoogleSafeBrowsingService(env.GOOGLE_SAFE_BROWSING_API_KEY),
+  new VirusTotalService(env.VIRUSTOTAL_API_KEY),
+  new PhishTankService(env.PHISHTANK_API_KEY),
+  new UrlhausService(env.URLHAUS_AUTH_KEY),
   ];
 
   const aggregator = new ThreatAggregator(services);
